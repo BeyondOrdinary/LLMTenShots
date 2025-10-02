@@ -8,6 +8,7 @@ from zero_shot_classifier import ZeroShotLayoutClassifier
 from multi_modal_parser import MultiModalParser
 from main import SemanticChunk
 import pickle
+import numpy as np
 
 class LayoutExtractionPipeline:
     def __init__(self, checkpoint_dir: str = "checkpoints"):
@@ -67,9 +68,9 @@ class LayoutExtractionPipeline:
         # self._cleanup_checkpoints(checkpoint_base)
         
         result = {
-            'chunks': [chunk.__dict__ for chunk in classified_chunks],
-            'relationships': relationships,
-            'document_structure': document_structure,
+            'chunks': [chunk.to_dict() for chunk in classified_chunks],  # Use to_dict() instead of __dict__
+            'relationships': self._serialize_relationships(relationships),
+            'document_structure': self._serialize_document_structure(document_structure),
             'metadata': {
                 'total_chunks': len(classified_chunks),
                 'document_path': file_path,
@@ -78,6 +79,38 @@ class LayoutExtractionPipeline:
         }
         
         return result
+
+    def _serialize_relationships(self, relationships: List[Dict]) -> List[Dict]:
+        """Serialize relationships to be JSON compatible"""
+        serialized = []
+        for rel in relationships:
+            serialized_rel = {}
+            for key, value in rel.items():
+                if isinstance(value, (np.integer, np.floating)):
+                    serialized_rel[key] = float(value)
+                elif isinstance(value, np.ndarray):
+                    serialized_rel[key] = value.tolist()
+                else:
+                    serialized_rel[key] = value
+            serialized.append(serialized_rel)
+        return serialized
+
+    def _serialize_document_structure(self, structure: Dict) -> Dict:
+        """Serialize document structure to be JSON compatible"""
+        # Handle any numpy arrays in document structure
+        def serialize_recursive(obj):
+            if isinstance(obj, dict):
+                return {k: serialize_recursive(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [serialize_recursive(item) for item in obj]
+            elif isinstance(obj, (np.integer, np.floating)):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            else:
+                return obj
+        
+        return serialize_recursive(structure)
     
     def _save_checkpoint(self, base_path: Path, step: str, data: Any):
         """Save checkpoint data"""
@@ -102,9 +135,29 @@ class LayoutExtractionPipeline:
     
     def list_checkpoints(self, file_path: str) -> List[str]:
         """List available checkpoints for a document"""
+        # Handle both filename and full path
         doc_name = Path(file_path).stem
-        checkpoint_files = list(self.checkpoint_dir.glob(f"{doc_name}.*.pkl"))
-        steps = [f.suffix[1:-4] for f in checkpoint_files]  # Remove . and .pkl
+        
+        # Debug: show what we're looking for
+        print(f"Document name: {doc_name}")
+        print(f"Checkpoint directory contents: {list(self.checkpoint_dir.iterdir())}")
+        
+        steps = []
+        try:
+            # Look for checkpoint files
+            for file_path in self.checkpoint_dir.iterdir():
+                if file_path.suffix == '.pkl' and file_path.name.startswith(doc_name + '.'):
+                    # Extract step name
+                    # From "input_document.chunks.pkl" get "chunks"
+                    stem = file_path.stem  # "input_document.chunks"
+                    if '.' in stem:
+                        parts = stem.split('.')
+                        step = parts[-1]  # Last part
+                        steps.append(step)
+                        print(f"Found checkpoint: {file_path.name} -> step: {step}")
+        except Exception as e:
+            print(f"Error listing checkpoints: {e}")
+        
         return sorted(steps)
     
     def resume_processing(self, file_path: str, step: str = None) -> Dict[str, Any]:

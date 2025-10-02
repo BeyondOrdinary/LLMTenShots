@@ -4,7 +4,25 @@ import asyncio
 from pathlib import Path
 from layout_extraction_pipeline import LayoutExtractionPipeline
 import json
+import numpy as np
 
+def make_serializable(obj):
+    """Make object JSON serializable"""
+    if isinstance(obj, dict):
+        return {k: make_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_serializable(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return [make_serializable(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.floating)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif hasattr(obj, 'to_dict'):  # For SemanticChunk
+        return obj.to_dict()
+    else:
+        return obj
+    
 def main():
     parser = argparse.ArgumentParser(description="Layout Extraction Tool with Checkpointing")
     parser.add_argument("input_file", help="Input document to process")
@@ -27,10 +45,13 @@ def main():
     else:
         result = asyncio.run(pipeline.process_document_with_checkpoints(args.input_file))
     
+    # Make result JSON serializable
+    serializable_result = make_serializable(result)
+    
     # Save result
     output_file = Path(args.input_file).with_suffix(".layout.json")
     with open(output_file, 'w') as f:
-        json.dump(result, f, indent=2)
+        json.dump(serializable_result, f, indent=2)
     
     print(f"Results saved to {output_file}")
 
