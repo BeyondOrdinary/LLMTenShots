@@ -1,0 +1,18 @@
+name: zeroshot
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - matplotlib
+  - numpy
+  - scikit-learn
+  - pip
+  - Pillow
+  - pip:
+      - torch
+      - pymupdf
+      - opencv-python
+      - pytesseract
+      - transformers
+      - sentence-transformers
+
