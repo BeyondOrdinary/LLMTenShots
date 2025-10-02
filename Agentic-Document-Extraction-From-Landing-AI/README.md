@@ -1,6 +1,6 @@
 # Agentic Document Extraction from Landing.AI
 
-This 10-shot was generated from a few interations with the Qwen-480B-Cloud model hosted at Ollama and accessed using OpenWebUI from a local installation.
+This 10-shot was generated from a few interactions with the Qwen-480B-Cloud model hosted at Ollama and accessed using OpenWebUI from a local installation.
 
 ## The URL
 
